@@ -1,0 +1,7 @@
+requests
+pandas
+sqlalchemy  
+duckdb
+flask
+motherduck
+python-dotenv
