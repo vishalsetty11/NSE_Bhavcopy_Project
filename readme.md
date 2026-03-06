@@ -95,14 +95,4 @@ Add a New Repository Secret: MOTHERDUCK_TOKEN.
 
 The pipeline will now run automatically at 12:30 PM UTC daily.
 
-📜 Strategy Logic (WeeklyLong)
-
-Filter: SERIES = 'EQ' (Equity only).
-
-Condition 1: Close > 20 EMA.
-
-Condition 2: Volume > 1.5x (30-day average volume).
-
-Condition 3: Marubozu candle detection (Strong buying pressure).
-
 Disclaimer: This project is for educational purposes only. Always perform your own research before making financial decisions.
