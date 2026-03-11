@@ -1,7 +1,7 @@
 Environments & Credentials
 
 .env
-config.py
+authKeys.txt
 KiteAPI/
 mage-env/
 .venv/
