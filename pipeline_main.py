@@ -30,23 +30,28 @@ def run_nse_pipeline():
     print(f"📅 LATEST TARGET : {target_date.strftime('%Y-%m-%d')}")
     print(f"{'='*60}\n")
 
-    # 1. DOWNLOAD STAGE: 
-    # Logic: Scans 365 days back, skipping weekends/holidays and already downloaded files.
-    success = download_to_cloud(DB_PATH, days_back=365)
+    try:
+        # 1. DOWNLOAD STAGE: 
+        # Logic: Scans 365 days back, skipping weekends/holidays and already downloaded files.
+        success = download_to_cloud(DB_PATH, days_back=365)
 
-    if success:
-        # 2. BRONZE STAGE: Parse CSV strings from 'ingestedCSVData'
-        load_bronze(DB_PATH)
+        if success:
+            # 2. BRONZE STAGE: Parse CSV strings from 'ingestedCSVData'
+            load_bronze(DB_PATH)
 
-        # 3. SILVER STAGE: Cleaning, Filtering (EQ Only), Weekly & 6-Month Vol
-        load_silver(DB_PATH)
+            # 3. SILVER STAGE: Cleaning, Filtering (EQ Only), Weekly & 6-Month Vol
+            load_silver(DB_PATH)
 
-        # 4. GOLD STAGE: Signal Generation
-        load_gold(DB_PATH)
-        
-        print(f"\n✅ Pipeline Complete. Data live in MotherDuck.")
-    else:
-        print("\n❌ Pipeline Halted: Critical error in Downloader.")
+            # 4. GOLD STAGE: Signal Generation
+            load_gold(DB_PATH)
+            
+            print(f"\n✅ Pipeline Complete. Data live in MotherDuck.")
+        else:
+            print("\n❌ Pipeline Halted: Critical error in Downloader.")
+    except Exception as e:
+        import traceback
+        print(f"\n❌ PIPELINE ERROR: {e}")
+        traceback.print_exc()
 
 if __name__ == "__main__":
     run_nse_pipeline()

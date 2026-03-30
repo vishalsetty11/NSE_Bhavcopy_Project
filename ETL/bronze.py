@@ -1,6 +1,7 @@
 from datetime import datetime
 import io
-
+import pandas as pd
+import duckdb
 
 def load_bronze(db_path):
     """
@@ -9,8 +10,7 @@ def load_bronze(db_path):
     1. Series: Only EQ, BE, SM, ST, BZ (Equity/SME Stock types).
     2. Symbols: Excludes ETFs, Funds, and Indices using expanded pattern matching.
     """
-    import pandas as pd
-    import duckdb
+
     con = duckdb.connect(db_path)
     con.execute("CREATE SCHEMA IF NOT EXISTS bronze;")
     
@@ -46,7 +46,7 @@ def load_bronze(db_path):
     EXCLUDE_PATTERNS = [
         'BEES$', 'ETF$', 'IETF$', 'CASE$', 'ADD$', 'GOLD$', 'SILVER$', 'LIQUID$', 
         'BETA$', 'GILT$', 'NIFTY$', 'SDL', 'ADD$', 'VALUE$', 'QUAL$', 'MOM$', 
-        'ALPHA$', 'LOWVOL$', '^HEALTHY$', '^CONSUMER$', '^FINANCE$'
+        'ALPHA$', 'LOWVOL$', '^HEALTHY$', '^CONSUMER$', '^FINANCE$','^MOGSEC$','^MOMENTUM$','^NIFTY50$','^GROWWLIQID$'
     ]
     exclude_regex = "|".join(EXCLUDE_PATTERNS)
 
@@ -55,7 +55,7 @@ def load_bronze(db_path):
             date_part = filename.split('_')[-1].replace('.csv', '')
             file_date = datetime.strptime(date_part, '%d%m%Y').date()
             
-            df = pd.read_csv(io.StringIO(content), dtype=str)
+            df = pd.read_csv(io.StringIO(content), dtype=object)
             df.columns = df.columns.str.strip()
             
             # 1. Clean data values
@@ -78,6 +78,11 @@ def load_bronze(db_path):
             df['_source_file'] = filename
             df['_loaded_at'] = datetime.now()
             df['_file_date'] = file_date
+
+            # Pandas 3.x uses StringDtype for new string columns, which DuckDB 1.4.x
+            # doesn't recognize. Convert all string/object columns to plain object dtype.
+            for col in df.select_dtypes(include=['string']).columns:
+                df[col] = df[col].astype(object)
             
             con.execute("INSERT INTO bronze.bhavcopy_raw SELECT * FROM df")
             print(f"✅ Ingested {len(df)} stocks from {filename}")

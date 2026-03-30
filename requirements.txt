@@ -1,7 +1,7 @@
 requests
 pandas
 sqlalchemy  
-duckdb
+duckdb==1.4.3
 flask
 motherduck
 python-dotenv

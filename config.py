@@ -10,8 +10,9 @@ MD_TOKEN = os.getenv('MOTHERDUCK_TOKEN')
 
 if ENV == 'PROD' and MD_TOKEN:
     # Production: Cloud MotherDuck connection
-    # Path format: md:database_name?token=your_token
-    DB_PATH = f"md:nse_market?token={MD_TOKEN}"
+    # Set token via env var (recommended by MotherDuck)
+    os.environ['motherduck_token'] = MD_TOKEN
+    DB_PATH = "md:nse_market"
 else:
     # Development: Local DuckDB file path
     DB_PATH = r"D:\Setty\Market Project\Bhavcopy\nse_market.duckdb"
