@@ -5,6 +5,8 @@ authKeys.txt
 KiteAPI/
 mage-env/
 .venv/
+__pycache__/
+__init__.py
 
 Temporary & Metadata Files
 
@@ -17,8 +19,11 @@ Thumbs.db
 Analysis & Migration Scripts (User requested)
 
 cloudMigration.py
+csvDownload.py
 analyser.py
 Loader.py
+ChartLink/
+chartLinkDownload.py
 
 Python Cache
 

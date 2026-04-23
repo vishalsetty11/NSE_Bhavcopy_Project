@@ -1,17 +1,32 @@
 import datetime
 import time
+import json
+import os
 
 def download_to_cloud(db_path, days_back=365):
     """
-    Downloads NSE Bhavcopy CSVs for the last 'n' days.
-    Skips downloads for files already present in the database to save API calls.
+    Fetches missing Bhavcopy files from NSE.
+    Uses a Dictionary (persisted via JSON) to track per-file strikes.
     """
     import requests
     import duckdb
     
+    # PRECISE CONFIG: Local JSON file to store the strike dictionary
+    PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+    TRACKER_FILE = os.path.join(PROJECT_DIR, "strike_tracker.json")
+    
+    # 1. Load Strike Tracker (Dictionary) - AUTOMATIC CHECKER
+    strike_tracker = {}
+    if os.path.exists(TRACKER_FILE):
+        try:
+            with open(TRACKER_FILE, 'r') as f:
+                strike_tracker = json.load(f)
+        except Exception:
+            strike_tracker = {}
+
+    print(f"🔗 Establishing MotherDuck Connection...")
     con = duckdb.connect(db_path)
     
-    # Ensure staging table exists
     con.execute("CREATE SCHEMA IF NOT EXISTS ingestedCSVData;")
     con.execute("""
         CREATE TABLE IF NOT EXISTS ingestedCSVData.raw_files (
@@ -21,48 +36,62 @@ def download_to_cloud(db_path, days_back=365):
         );
     """)
 
-    # PRECISE FIX: Correctly fetch ALL existing filenames to avoid redundant downloads
-    # This prevents the script from hitting NSE for data you already have in MotherDuck.
-    existing_files = {row[0] for row in con.execute("SELECT filename FROM ingestedCSVData.raw_files").fetchall()}
+    res_files = con.execute("SELECT filename FROM ingestedCSVData.raw_files").fetchall()
+    existing_files = {row[0] for row in res_files}
 
-    print(f"🔍 Checking for missing data over the last {days_back} days...")
-    
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    headers = {'User-Agent': 'Mozilla/5.0'}
     base_url = "https://nsearchives.nseindia.com/products/content/"
     
+    new_downloads = 0
+    consecutive_empty_days = 0 
+    
     for i in range(days_back):
-        target_date = datetime.date.today() - datetime.timedelta(days=i)
-        
-        # Skip Weekends (Sat=5, Sun=6)
-        if target_date.weekday() >= 5:
-            continue
+        if consecutive_empty_days >= 5: 
+            break
             
-        date_str = target_date.strftime('%d%m%Y')
-        filename = f"sec_bhavdata_full_{date_str}.csv"
+        target_date = datetime.date.today() - datetime.timedelta(days=i)
+        if target_date.weekday() >= 5: continue # Skip weekends
+            
+        filename = f"sec_bhavdata_full_{target_date.strftime('%d%m%Y')}.csv"
         
-        # Incremental Check: Skip if file is already in the database
-        if filename in existing_files:
+        # PRECISE SKIP: If the dictionary shows 3 or more strikes, skip this file
+        if strike_tracker.get(filename, 0) >= 2:
             continue
 
-        url = f"{base_url}{filename}"
-        
+        if filename in existing_files:
+            consecutive_empty_days = 0
+            continue
+
         try:
             print(f"🌐 Fetching: {filename}")
-            response = requests.get(url, headers=headers, timeout=15)
+            response = requests.get(f"{base_url}{filename}", headers=headers, timeout=15)
             
             if response.status_code == 200:
-                con.execute("""
-                    INSERT INTO ingestedCSVData.raw_files (filename, content) 
-                    VALUES (?, ?) 
-                    ON CONFLICT DO NOTHING
-                """, [filename, response.text])
+                con.execute("INSERT INTO ingestedCSVData.raw_files (filename, content) VALUES (?, ?)", [filename, response.text])
                 print(f"✅ Landed: {filename}")
-                time.sleep(1) # Mandatory delay to prevent NSE blocking
+                new_downloads += 1
+                consecutive_empty_days = 0
+                
+                # PRECISE RESET: Remove from dictionary if successfully downloaded
+                if filename in strike_tracker:
+                    del strike_tracker[filename]
+                time.sleep(1) 
             elif response.status_code == 404:
                 print(f"⚠️ Not found: {filename}")
+                consecutive_empty_days += 1
+                
+                # PRECISE UPDATE: Increment strikes in the dictionary
+                strike_tracker[filename] = strike_tracker.get(filename, 0) + 1
+            else:
+                consecutive_empty_days += 1
                 
         except Exception as e:
-            print(f"❌ Network Error for {filename}: {e}")
+            print(f"❌ Error: {e}")
+            consecutive_empty_days += 1
+
+    # 3. Persist the Dictionary back to JSON for the next run
+    with open(TRACKER_FILE, 'w') as f:
+        json.dump(strike_tracker, f)
 
     con.close()
     return True

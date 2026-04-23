@@ -39,7 +39,7 @@ def load_bronze(db_path):
     import re
 
     # PRECISE FILTER CRITERIA
-    VALID_SERIES = ['EQ', 'BE', 'SM', 'ST', 'BZ']
+    VALID_SERIES = ['EQ']
     
     # Expanded list of patterns found in ETFs/Funds/Indices
     # Added keywords like NIFTY, GILT, and specific tricky symbols like HEALTHY/CONSUMER
