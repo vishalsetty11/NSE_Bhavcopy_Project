@@ -1,6 +1,6 @@
-NSE Medallion Intelligence 📈
+Weekly Long
 
-A cloud-native, end-to-end ELT pipeline that ingests daily National Stock Exchange (NSE) Bhavcopy data into a MotherDuck data lake. It uses the Medallion Architecture to transform raw data into actionable "WeeklyLong" trading signals.
+A cloud-native, end-to-end ELT pipeline that ingests daily National Stock Exchange (NSE) data into a MotherDuck data lake. It uses the Medallion Architecture to transform raw data into actionable "WeeklyLong" trading signals.
 
 🚀 Key Features
 
@@ -11,38 +11,8 @@ Interactive Dashboard: Flask-based UI with signal monitoring.
 
 🛠️ Tech Stack
 
-Database: MotherDuck (Cloud DuckDB)
-Engine: DuckDB
-Backend: Python 3.11+
-Dashboard: Flask, Tailwind CSS, JavaScript
-Automation: Render CRON Jobs
-
-
--> Setup & Installation
-
-Clone the repository:
-  git clone [https://github.com/vishalsetty11/Weekly_Long_Project.git](https://github.com/vishalsetty11/Weekly_Long_Project.git)
-  cd NSE_Bhavcopy_Project
-
-Create a Virtual Environment:
-  python -m venv .venv
-  source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-Install Dependencies:
-  pip install -r requirements.txt
-
-Configure Environment Variables:
-  Create a .env file in the root directory:
-    APP_ENV=PROD
-    MOTHERDUCK_TOKEN=your_motherduck_token_here
-
-
--> How to Run
-
-1. Run the Pipeline
-Fetches the latest Bhavcopy and updates the MotherDuck schemas:
-  python pipeline_main.py
-
-2. Launch the Dashboard
-View signals and run custom SQL queries locally:
-  python dashboard/app.py
+Database: MotherDuck (Cloud DuckDB); 
+Engine: DuckDB; 
+Backend: Python 3.11+; 
+Dashboard: Flask, Tailwind CSS, JavaScript; 
+Automation: Render CRON Jobs.
