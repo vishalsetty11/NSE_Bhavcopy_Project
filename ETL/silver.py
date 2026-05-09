@@ -56,11 +56,17 @@ def load_silver(db_path):
         price_stats AS (
             -- 3. Calculate high using only the weekly data, relative to our anchor
             SELECT symbol, _file_date, close_price,
-                MAX(close_price) OVER (
+                MAX(close_price) OVER ( 
                     PARTITION BY symbol 
                     ORDER BY _file_date 
                     ROWS BETWEEN 26 PRECEDING AND 1 PRECEDING
-                ) as prev_180d_friday_high
+                ) as prev_180d_friday_high,
+                -- New column: 50-week moving average
+                ROUND(AVG(close_price) OVER (
+                    PARTITION BY symbol
+                    ORDER BY _file_date
+                    ROWS BETWEEN 49 PRECEDING AND CURRENT ROW
+                ),2) as "50w_Moving_avg"
             FROM weekly_closes
             WHERE _file_date <= (SELECT ref_date FROM anchor_friday)
         )
@@ -70,6 +76,7 @@ def load_silver(db_path):
             p._file_date, 
             p.close_price, 
             p.prev_180d_friday_high,
+            p."50w_Moving_avg",
             CASE 
                 WHEN p.close_price > p.prev_180d_friday_high THEN '✅ YES' 
                 ELSE '❌ NO' 

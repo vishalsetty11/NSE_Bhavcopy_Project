@@ -40,6 +40,7 @@ def get_history():
             _file_date,
             symbol,
             close_price, 
+            "50w_Moving_avg" AS "50-week moving average",
             prev_180d_friday_high,
             "3X_180dvol_MULTIPLE",
             IS_3X_SURGE,

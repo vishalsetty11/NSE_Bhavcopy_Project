@@ -90,6 +90,9 @@
                             <th class="px-6 py-4">Close Price</th>
                         </b>
                         <b>
+                            <th class="px-6 py-4">50-week moving average</th>
+                        </b>
+                        <b>
                             <th class="px-6 py-4">180D Friday High</th>
                         </b>
                         <b>
@@ -153,17 +156,27 @@
             // Update Page Info
             document.getElementById('page-info').innerText = `Page ${currentPage} of ${totalPages}`;
 
-            document.getElementById('table-body').innerHTML = pageData.map(s => `
-                <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4 font-mono">${s._file_date}</td>
-                    <td class="px-6 py-4 font-bold text-blue-900">
-                        <a href="https://in.tradingview.com/chart/?symbol=${s.symbol}" target="tradingview_chart" class="inline-flex items-center gap-1 hover:underline">${s.symbol} <span class="text-gray-500 text-xs">↗</span></a>
-                    </td>
-                    <td class="px-6 py-4">₹. ${s.close_price}</td>
-                    <td class="px-6 py-4">₹. ${s.prev_180d_friday_high}</td>
-                    <td class="px-6 py-4">${s['3X_180dvol_MULTIPLE']}x</td>
-                </tr>
-            `).join('') || '<tr><td colspan="7" class="p-10 text-center">No data found.</td></tr>';
+            document.getElementById('table-body').innerHTML = pageData.map(s => {
+                // Logic: Green if Close > 50W MA, else Red
+                const priceColorClass = parseFloat(s.close_price) > parseFloat(s['50-week moving average']) 
+                    ? 'text-emerald-600' 
+                    : 'text-red-600';
+
+                return `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 font-mono">${s._file_date}</td>
+                        <td class="px-6 py-4 font-bold text-blue-900">
+                            <a href="https://in.tradingview.com/chart/?symbol=${s.symbol}" target="tradingview_chart" class="inline-flex items-center gap-1 hover:underline">
+                                ${s.symbol} <span class="text-gray-500 text-xs">↗</span>
+                            </a>
+                        </td>
+                        <td class="px-6 py-4 font-bold ${priceColorClass}">₹. ${s.close_price}</td>
+                        <td class="px-6 py-4  ${priceColorClass}">₹. ${s['50-week moving average']}</td>
+                        <td class="px-6 py-4">₹. ${s.prev_180d_friday_high}</td>
+                        <td class="px-6 py-4 font-bold text-emerald-600">${s['3X_180dvol_MULTIPLE']}x</td>
+                    </tr>
+                `;
+            }).join('') || '<tr><td colspan="7" class="p-10 text-center">No data found.</td></tr>';
         }
         init();
     </script>
