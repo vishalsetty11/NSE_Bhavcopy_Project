@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Weekly Long - Watchlist</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .glass {
+            background: #ffffff;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgb(0, 0, 0);
+        }
+
+        html,
+        body {
+            height: 100vh;
+            width: 100vw;
+            margin: 0;
+            padding: 0;
+            background-color: #ccc;
+            color: #000000;
+            font-family: 'Inter', sans-serif;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body class="p-8">
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <div class="flex justify-between items-center">
+            <h1 class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-gray-800 to-black">
+                Watchlist
+            </h1>
+            <a href="/" class="bg-blue-900 hover:bg-blue-800 text-white text-sm font-bold px-4 py-2 rounded shadow transition inline-flex items-center gap-2 active:scale-95">
+                ← Back to Dashboard
+            </a>
+        </div>
+
+        <div class="glass rounded-xl overflow-hidden shadow-xl">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                <h2 class="text-sm font-bold text-gray-700 tracking-wide uppercase">Tracked Symbols</h2>
+            </div>
+            
+            <table class="w-full text-left text-sm">
+                <thead class="bg-gray-100 text-gray-600 uppercase tracking-wider text-xs border-b border-gray-200">
+                    <tr>
+                        <th class="px-6 py-4">Symbol</th>
+                        <th class="px-6 py-4">Notes</th>
+                        <th class="px-6 py-4">Bhavcopy Date</th>
+                        <th class="px-6 py-4">Reminder Date</th>
+                        <th class="px-6 py-4 text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 bg-white">
+                    {% for item in items %}
+                    <tr id="row-{{ item[0].replace('-', '_') }}" class="hover:bg-gray-50/80 transition-colors">
+                        
+                        <td class="px-6 py-4 font-bold text-blue-900 tracking-wide">
+                            <a href="https://in.tradingview.com/chart/?symbol={{ item[0] }}" target="tradingview_chart" class="hover:underline inline-flex items-center gap-1">
+                                {{ item[0] }} <span class="text-gray-400 text-xs font-normal">↗</span>
+                            </a>
+                        </td> 
+                        
+                        <td class="px-6 py-4 text-gray-700 max-w-sm break-words">
+                            {% if item[1] and item[1].strip() %}
+                                <span class="font-medium text-slate-800">{{ item[1] }}</span>
+                            {% else %}
+                                <span class="text-gray-400 italic font-light text-xs">No descriptive note attached</span>
+                            {% endif %}
+                        </td> 
+                        
+                        <td class="px-6 py-4 font-mono text-xs text-gray-500 font-semibold">
+                            {{ item[2] if item[2] else 'N/A' }}
+                        </td> 
+                        
+                        <td class="px-6 py-4 font-mono text-xs font-semibold">
+                            {% if item[3] %}
+                                <a href="{{ item[5] }}" target="_blank" class="{{ 'text-red-600 hover:text-red-700' if item[6] else 'text-emerald-600 hover:text-emerald-700' }} font-bold hover:underline inline-flex items-center gap-1">
+                                    {{ item[3] }} <span class="text-gray-400 text-[10px] font-normal">↗</span>
+                                </a>
+                            {% else %}
+                                <span class="text-gray-400 font-normal">N/A</span>
+                            {% endif %}
+                        </td> 
+                        
+                        <td class="px-6 py-4 text-center whitespace-nowrap">
+                            <button class="bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-200 hover:border-red-600 text-xs font-bold px-4 py-1.5 rounded-lg transition-all duration-150 shadow-sm active:scale-95" 
+                                    onclick="removeFromWatchlist('{{ item[0] }}')">
+                                Remove
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="p-12 text-center text-gray-400 italic bg-white font-medium">
+                            📁 Watchlist is empty. Return to the main engine timeline to flag items.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <dialog id="confirm-modal" class="glass rounded-xl shadow-2xl p-6 max-w-md w-full backdrop:bg-black/40 open:flex flex-col gap-4 outline-none border border-black/10">
+        <div class="flex items-start gap-3">
+            <div class="bg-amber-100 text-amber-800 px-2.5 py-1.5 rounded-lg text-sm font-bold border border-amber-200">⚠️</div>
+            <div>
+                <h3 class="text-base font-bold text-gray-900">Remove from Tracking?</h3>
+                <p id="modal-message" class="text-xs text-gray-600 mt-1">Are you sure you want to remove this asset from active tracking?</p>
+            </div>
+        </div>
+        <div class="flex justify-end gap-3 mt-2">
+            <button id="modal-cancel" class="px-4 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-50 transition active:scale-95">
+                Cancel
+            </button>
+            <button id="modal-confirm" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shadow-sm transition active:scale-95">
+                Confirm Remove
+            </button>
+        </div>
+    </dialog>
+
+    <script>
+        let targetSymbolToDelete = null;
+        
+        const modal = document.getElementById('confirm-modal');
+        const modalMessage = document.getElementById('modal-message');
+
+        function removeFromWatchlist(symbol) {
+            targetSymbolToDelete = symbol;
+            modalMessage.innerText = `Are you sure you want to remove ${symbol} from active tracking?`;
+            modal.showModal(); 
+        }
+
+        document.getElementById('modal-cancel').addEventListener('click', () => {
+            modal.close();
+            targetSymbolToDelete = null;
+        });
+
+        modal.addEventListener('cancel', () => {
+            targetSymbolToDelete = null;
+        });
+
+        document.getElementById('modal-confirm').addEventListener('click', () => {
+            if (!targetSymbolToDelete) return;
+            
+            fetch('/api/watchlist/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ symbol: targetSymbolToDelete })
+            })
+            .then(res => res.json())
+            .then(data => {
+                modal.close();
+                if(data.success) {
+                    const cleanId = targetSymbolToDelete.replace('-', '_');
+                    const targetRow = document.getElementById(`row-${cleanId}`);
+                    if(targetRow) {
+                        targetRow.classList.add('opacity-0', 'transition-all', 'duration-300');
+                        setTimeout(() => {
+                            targetRow.remove();
+                            if(document.querySelectorAll('tbody tr').length === 0) {
+                                window.location.reload();
+                            }
+                        }, 300);
+                    }
+                } else {
+                    alert('❌ Connection failed: Database rejected delete command pipeline operations.');
+                }
+                targetSymbolToDelete = null;
+            })
+            .catch(err => {
+                modal.close();
+                console.error("Watchlist network mutation dropped:", err);
+                alert("❌ Communication Error: Backend is non-responsive.");
+                targetSymbolToDelete = null;
+            });
+        });
+    </script>
+</body>
+</html>

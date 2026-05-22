@@ -16,7 +16,7 @@ Temporary & Metadata Files
 .DS_Store
 Thumbs.db
 
-Analysis & Migration Scripts (User requested)
+Analysis & Migration Scripts
 
 cloudMigration.py
 csvDownload.py
@@ -24,6 +24,7 @@ analyser.py
 Loader.py
 ChartLink/
 chartLinkDownload.py
+client_secret.json
 
 Python Cache
 
