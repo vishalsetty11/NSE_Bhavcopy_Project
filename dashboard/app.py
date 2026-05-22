@@ -195,8 +195,8 @@ def add_to_watchlist():
             end_dt = datetime.datetime.fromisoformat(iso_start) + datetime.timedelta(minutes=30)
             
             cal_event = service.events().insert(calendarId='primary', body={
-                'summary': f'🚨 Breakout Reminder: {symbol}',
-                'description': f'Dashboard Tracking Notes:\n{note}',
+                'summary': f'Weekly Long Reminder: {symbol}',
+                'description': f'Notes:\n{note}',
                 'start': {'dateTime': iso_start, 'timeZone': 'Asia/Kolkata'},
                 'end': {'dateTime': end_dt.isoformat(), 'timeZone': 'Asia/Kolkata'},
                 'reminders': {'useDefault': False, 'overrides': [{'method': 'popup', 'minutes': 15}]}
