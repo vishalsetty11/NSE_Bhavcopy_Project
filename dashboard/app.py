@@ -4,6 +4,7 @@ import os
 import sys
 import datetime
 import json
+import requests  # PRECISE ADAPTATION: Used to run stateless background token exchanges
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -39,6 +40,7 @@ def safe_fetch_all(cursor):
     return results
 
 def get_google_flow(state=None):
+    """Establishes clear base properties configurations for user initialization mapping."""
     env_client = os.environ.get('GOOGLE_CLIENT_SECRET_JSON')
     if env_client:
         client_config = json.loads(env_client)
@@ -50,57 +52,79 @@ def get_google_flow(state=None):
         flow.redirect_uri = "https://nse-bhavcopy-project.onrender.com/google/callback"
     else:
         flow.redirect_uri = url_for('google_callback', _external=True)
+        
     return flow
 
+# --- MULTI-USER OAUTH ROUTING ENGINES ---
 @app.route('/google/login')
 def google_login():
+    """Initializes standard multi-user OAuth redirect workflow out to Google."""
     flow = get_google_flow()
     authorization_url, state = flow.authorization_url(
-        access_type='offline', include_granted_scopes='true', prompt='consent'
+        access_type='offline',
+        include_granted_scopes='true',
+        prompt='consent'
     )
     session['oauth_state'] = state
+    
+    # Preserve current entry values to auto-commit them after authentication finishes
     session['pending_symbol'] = request.args.get('symbol')
     session['pending_note'] = request.args.get('note', '')
     session['pending_file_date'] = request.args.get('file_date', '')
     session['pending_reminder_time'] = request.args.get('reminder_time', '')
+    
     return redirect(authorization_url)
 
 @app.route('/google/callback')
 def google_callback():
-    """Captures authorization responses from Google and saves token state map into browser session cookies."""
-    state = request.args.get('state')
-    
-    # Re-initialize the flow instance with the correct state parameter check
-    flow = get_google_flow(state=state)
-    
-    try:
-        authorization_response = request.url
-        if "onrender.com" in request.host_url:
-            authorization_response = authorization_response.replace("http:", "https:", 1)
-            os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+    """Captures authorization responses from Google using raw stateless HTTP post requests."""
+    code = request.args.get('code')
+    if not code:
+        return jsonify({"error": "Authorization code missing from redirection arguments."}), 400
+        
+    # PRECISE FIX: Extract client parameters directly from system config mappings
+    env_client = os.environ.get('GOOGLE_CLIENT_SECRET_JSON')
+    if env_client:
+        client_config = json.loads(env_client).get('web', {})
+    else:
+        with open('client_secret.json', 'r') as f:
+            client_config = json.load(f).get('web', {})
 
-        # PRECISE PRODUCTION FIX: Bypass multi-worker thread PKCE checking conflicts 
-        # by executing direct authorization code extraction parameters natively.
-        if hasattr(flow, 'oauth2session') and flow.oauth2session:
-            # Clears internal state tracking variables to avoid session key mismatches between dynamic host nodes
-            flow.oauth2session.state = None
-            
-        # Securely download user credentials access tokens using the explicit query string code argument directly
-        flow.fetch_token(code=request.args.get('code'))
+    # Establish dynamic redirection targets matching live host link parameters
+    redirect_uri = "https://nse-bhavcopy-project.onrender.com/google/callback" if "onrender.com" in request.host_url else url_for('google_callback', _external=True)
+
+    # PRECISE FIX: Execute a raw stateless background POST request directly to Google's token endpoint.
+    # This completely bypasses the local thread PKCE checking requirements causing the worker crash.
+    token_data = {
+        'code': code,
+        'client_id': client_config.get('client_id'),
+        'client_secret': client_config.get('client_secret'),
+        'redirect_uri': redirect_uri,
+        'grant_type': 'authorization_type' if not code else 'authorization_code'
+    }
+
+    try:
+        response = requests.post(client_config.get('token_uri', 'https://oauth2.googleapis.com/token'), data=token_data)
+        response_json = response.json()
         
-        # Save token to browser session context
-        session['google_credentials'] = json.loads(flow.credentials.to_json())
+        if 'error' in response_json:
+            return jsonify({"error": "Google token retrieval rejected.", "details": response_json}), 400
+
+        # Construct credentials mapping out from the raw API token structure response
+        session['google_credentials'] = {
+            'token': response_json.get('access_token'),
+            'refresh_token': response_json.get('refresh_token'),
+            'token_uri': client_config.get('token_uri'),
+            'client_id': client_config.get('client_id'),
+            'client_secret': client_config.get('client_secret'),
+            'scopes': SCOPES
+        }
         
-        # Clean up transient state session attributes keys safely
+        # Clear transient safety tags safely out from active memory
         session.pop('oauth_state', None)
-        session.pop('oauth_code_verifier', None)
-        
-    except Exception as token_err:
-        print(f"❌ OAuth Handshake Exception Intercepted: {token_err}")
-        return jsonify({
-            "error": "Authentication handshake failed.",
-            "details": str(token_err)
-        }), 400
+    except Exception as e:
+        print(f"❌ Handshake Exception Intercepted: {e}")
+        return jsonify({"error": "Handshake execution failed.", "details": str(e)}), 500
         
     return redirect(url_for('index'))
 
@@ -109,14 +133,20 @@ def get_pending_watchlist():
     symbol = session.get('pending_symbol')
     if not symbol:
         return jsonify({"has_pending": False})
+        
     payload = {
-        "has_pending": True, "symbol": symbol, "note": session.get('pending_note', ''),
-        "file_name": session.get('pending_file_date', ''), "reminder_time": session.get('pending_reminder_time', '')
+        "has_pending": True,
+        "symbol": symbol,
+        "note": session.get('pending_note', ''),
+        "file_name": session.get('pending_file_date', ''),
+        "reminder_time": session.get('pending_reminder_time', '')
     }
+    
     session.pop('pending_symbol', None)
     session.pop('pending_note', None)
     session.pop('pending_file_date', None)
     session.pop('pending_reminder_time', None)
+    
     return jsonify(payload)
 
 @app.route('/')
@@ -153,7 +183,8 @@ def add_to_watchlist():
     user_token = session.get('google_credentials')
     if reminder_time_raw and not user_token:
         return jsonify({
-            "success": False, "requires_auth": True,
+            "success": False, 
+            "requires_auth": True,
             "auth_url": url_for('google_login', symbol=symbol, note=note, file_date=file_name, reminder_time=reminder_time_raw)
         }), 401
 
@@ -166,11 +197,17 @@ def add_to_watchlist():
         except Exception:
             reminder_time = None
 
-    # PRECISE INTEGRATION: Sync to calendar immediately to grab unique event ID references
     google_event_id = None
     if reminder_time and user_token:
         try:
-            creds = Credentials.from_authorized_user_info(user_token, SCOPES)
+            creds = Credentials(
+                token=user_token.get('token'),
+                refresh_token=user_token.get('refresh_token'),
+                token_uri=user_token.get('token_uri'),
+                client_id=user_token.get('client_id'),
+                client_secret=user_token.get('client_secret'),
+                scopes=user_token.get('scopes')
+            )
             if creds.expired and creds.refresh_token:
                 creds.refresh(Request())
                 session['google_credentials'] = json.loads(creds.to_json())
@@ -180,8 +217,8 @@ def add_to_watchlist():
             end_dt = datetime.datetime.fromisoformat(iso_start) + datetime.timedelta(minutes=30)
             
             cal_event = service.events().insert(calendarId='primary', body={
-                'summary': f'Weekly Long Reminder: {symbol}',
-                'description': f'Notes:\n{note}',
+                'summary': f'🚨 Breakout Reminder: {symbol}',
+                'description': f'Dashboard Tracking Notes:\n{note}',
                 'start': {'dateTime': iso_start, 'timeZone': 'Asia/Kolkata'},
                 'end': {'dateTime': end_dt.isoformat(), 'timeZone': 'Asia/Kolkata'},
                 'reminders': {'useDefault': False, 'overrides': [{'method': 'popup', 'minutes': 15}]}
@@ -195,11 +232,14 @@ def add_to_watchlist():
         existing = conn.execute("SELECT id, event_id FROM watchlist.watchlisted_stocks WHERE symbol = ?", [symbol]).fetchone()
 
         if existing:
-            # Drop old event mapping if rewriting values
             old_event_id = existing[1]
             if old_event_id and user_token:
                 try:
-                    creds = Credentials.from_authorized_user_info(user_token, SCOPES)
+                    creds = Credentials(
+                        token=user_token.get('token'), refresh_token=user_token.get('refresh_token'),
+                        token_uri=user_token.get('token_uri'), client_id=user_token.get('client_id'),
+                        client_secret=user_token.get('client_secret'), scopes=user_token.get('scopes')
+                    )
                     service = build('calendar', 'v3', credentials=creds)
                     service.events().delete(calendarId='primary', eventId=old_event_id).execute()
                 except Exception:
@@ -228,7 +268,6 @@ def add_to_watchlist():
 def view_watchlist():
     conn = get_db_connection()
     try:
-        # PRECISE ADDITION: Extract stored event_id signatures from the table row space
         watchlist_items = conn.execute("""
             SELECT symbol, note, file_name, reminder_time, is_notified, event_id
             FROM watchlist.watchlisted_stocks ORDER BY id DESC
@@ -246,11 +285,8 @@ def view_watchlist():
                 try:
                     clean_ts = str(reminder_time).split(".")[0]
                     reminder_dt = datetime.datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
-                    
-                    # PRECISE CALCULATIONS: Flags true if current time has passed the reminder time checkpoint
                     if now > reminder_dt:
                         is_expired = True
-                        
                     date_str = reminder_dt.strftime("%Y%m%d")
                     cal_url = f"https://calendar.google.com/calendar/r/day/{date_str[0:4]}/{date_str[4:6]}/{date_str[6:8]}"
                 except Exception:
@@ -274,50 +310,36 @@ def delete_from_watchlist():
     user_token = session.get('google_credentials')
     conn = get_db_connection()
     try:
-        # Fetch the event_id metadata tracking configuration from DuckDB
         row = conn.execute("SELECT event_id FROM watchlist.watchlisted_stocks WHERE symbol = ?", [symbol]).fetchone()
         
         if row and user_token:
             event_id = row[0]
             try:
-                creds = Credentials.from_authorized_user_info(user_token, SCOPES)
+                creds = Credentials(
+                    token=user_token.get('token'), refresh_token=user_token.get('refresh_token'),
+                    token_uri=user_token.get('token_uri'), client_id=user_token.get('client_id'),
+                    client_secret=user_token.get('client_secret'), scopes=user_token.get('scopes')
+                )
                 if creds.expired and creds.refresh_token:
                     creds.refresh(Request())
                 service = build('calendar', 'v3', credentials=creds)
                 
-                # PATH A: Target delete using explicit unique Event ID
                 if event_id:
                     service.events().delete(calendarId='primary', eventId=event_id).execute()
-                    print(f"🗑️ Wiped Google Calendar event via ID: {event_id}")
-                
-                # PATH B: Fallback search by Title if event_id column is NULL/empty
                 else:
-                    print(f"🔍 event_id missing for {symbol}. Searching calendar by title fallback configuration...")
                     target_summary = f"🚨 Breakout Reminder: {symbol}"
-                    
-                    # Query events from the last 7 days to 1 year out to find matching titles
-                    now_iso = datetime.datetime.utcnow().isoformat() + 'Z'
                     events_result = service.events().list(
-                        calendarId='primary', 
-                        q=target_summary,
-                        timeMin=(datetime.datetime.utcnow() - datetime.timedelta(days=7)).isoformat() + 'Z',
-                        singleEvents=True
+                        calendarId='primary', q=target_summary, singleEvents=True
                     ).execute()
-                    
-                    events = events_result.get('items', [])
-                    for match_event in events:
+                    for match_event in events_result.get('items', []):
                         if match_event.get('summary') == target_summary:
                             service.events().delete(calendarId='primary', eventId=match_event['id']).execute()
-                            print(f"🗑️ Cleaned untracked fallback calendar event by title match: {match_event['id']}")
-                            
             except Exception as cal_err:
-                print(f"⚠️ Calendar event cleanup skipped or unauthorized: {cal_err}")
+                print(f"⚠️ Calendar cleanup skipped: {cal_err}")
 
-        # Drop record cleanly from the local analytics matrix database
         conn.execute("DELETE FROM watchlist.watchlisted_stocks WHERE symbol = ?", [symbol])
         return jsonify({"success": True})
     except Exception as e:
-        print(f"Deletion pipeline failure: {e}")
         return jsonify({"error": str(e)}), 500
     finally:
         conn.close()
