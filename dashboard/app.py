@@ -4,8 +4,8 @@ import os
 import sys
 import datetime
 import json
-import requests  # PRECISE ADAPTATION: Used to run stateless background token exchanges
-
+import requests  
+import urllib.parse
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -58,31 +58,7 @@ def get_google_flow(state=None):
 # --- MULTI-USER OAUTH ROUTING ENGINES ---
 @app.route('/google/login')
 def google_login():
-    """Initializes standard multi-user OAuth redirect workflow out to Google."""
-    flow = get_google_flow()
-    authorization_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true',
-        prompt='consent'
-    )
-    session['oauth_state'] = state
-    
-    # Preserve current entry values to auto-commit them after authentication finishes
-    session['pending_symbol'] = request.args.get('symbol')
-    session['pending_note'] = request.args.get('note', '')
-    session['pending_file_date'] = request.args.get('file_date', '')
-    session['pending_reminder_time'] = request.args.get('reminder_time', '')
-    
-    return redirect(authorization_url)
-
-@app.route('/google/callback')
-def google_callback():
-    """Captures authorization responses from Google using raw stateless HTTP post requests."""
-    code = request.args.get('code')
-    if not code:
-        return jsonify({"error": "Authorization code missing from redirection arguments."}), 400
-        
-    # PRECISE FIX: Extract client parameters directly from system config mappings
+    """Initializes a completely stateless OAuth link to bypass multi-worker PKCE verification constraints."""
     env_client = os.environ.get('GOOGLE_CLIENT_SECRET_JSON')
     if env_client:
         client_config = json.loads(env_client).get('web', {})
@@ -90,17 +66,50 @@ def google_callback():
         with open('client_secret.json', 'r') as f:
             client_config = json.load(f).get('web', {})
 
-    # Establish dynamic redirection targets matching live host link parameters
     redirect_uri = "https://nse-bhavcopy-project.onrender.com/google/callback" if "onrender.com" in request.host_url else url_for('google_callback', _external=True)
 
-    # PRECISE FIX: Execute a raw stateless background POST request directly to Google's token endpoint.
-    # This completely bypasses the local thread PKCE checking requirements causing the worker crash.
+    # PRECISE FIX: Manually build the login URL parameters without generating an internal code verifier hash tracking requirement
+    params = {
+        'client_id': client_config.get('client_id'),
+        'redirect_uri': redirect_uri,
+        'response_type': 'code',
+        'scope': ' '.join(SCOPES),
+        'access_type': 'offline',
+        'prompt': 'consent'
+    }
+    
+    # Save parameters to return back to adding the exact stock after login completes
+    session['pending_symbol'] = request.args.get('symbol')
+    session['pending_note'] = request.args.get('note', '')
+    session['pending_file_date'] = request.args.get('file_date', '')
+    session['pending_reminder_time'] = request.args.get('reminder_time', '')
+
+    auth_url = f"{client_config.get('auth_uri', 'https://accounts.google.com/o/oauth2/auth')}?{urllib.parse.urlencode(params)}"
+    return redirect(auth_url)
+
+@app.route('/google/callback')
+def google_callback():
+    """Captures authorization responses from Google cleanly using a simple stateless HTTP POST request."""
+    code = request.args.get('code')
+    if not code:
+        return jsonify({"error": "Authorization code missing from redirection arguments."}), 400
+        
+    env_client = os.environ.get('GOOGLE_CLIENT_SECRET_JSON')
+    if env_client:
+        client_config = json.loads(env_client).get('web', {})
+    else:
+        with open('client_secret.json', 'r') as f:
+            client_config = json.load(f).get('web', {})
+
+    redirect_uri = "https://nse-bhavcopy-project.onrender.com/google/callback" if "onrender.com" in request.host_url else url_for('google_callback', _external=True)
+
+    # Clear code verifier tracking entries out entirely from network execution bundles
     token_data = {
         'code': code,
         'client_id': client_config.get('client_id'),
         'client_secret': client_config.get('client_secret'),
         'redirect_uri': redirect_uri,
-        'grant_type': 'authorization_type' if not code else 'authorization_code'
+        'grant_type': 'authorization_code'
     }
 
     try:
@@ -119,9 +128,6 @@ def google_callback():
             'client_secret': client_config.get('client_secret'),
             'scopes': SCOPES
         }
-        
-        # Clear transient safety tags safely out from active memory
-        session.pop('oauth_state', None)
     except Exception as e:
         print(f"❌ Handshake Exception Intercepted: {e}")
         return jsonify({"error": "Handshake execution failed.", "details": str(e)}), 500
