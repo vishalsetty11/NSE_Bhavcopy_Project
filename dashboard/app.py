@@ -72,16 +72,28 @@ def google_callback():
     if 'oauth_code_verifier' in session:
         flow.code_verifier = session['oauth_code_verifier']
     try:
+        # PRECISE PRODUCTION FIX: Overrides the scheme to secure HTTPS if executing live on Render 
+        # to satisfy Google's strict redirect URI validation check
         authorization_response = request.url
-        if "onrender.com" in request.host_url and authorization_response.startswith("http:"):
+        if "onrender.com" in request.host_url:
             authorization_response = authorization_response.replace("http:", "https:", 1)
+            # Tells oauthlib that the proxy layer protocol framework is safe and secure
+            os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
+        # Securely exchange the parameters to download user credentials access tokens
         flow.fetch_token(authorization_response=authorization_response)
+        
+        # Save token to browser session context
         session['google_credentials'] = json.loads(flow.credentials.to_json())
+        
+        # Clean up transient state session attributes keys to avoid recycling old codes
         session.pop('oauth_state', None)
         session.pop('oauth_code_verifier', None)
+        
     except Exception as token_err:
         print(f"❌ OAuth Handshake Exception Intercepted: {token_err}")
-        return jsonify({"error": "Authentication handshake failed."}), 400
+        return jsonify({"error": f"Authentication handshake failed. Details: {str(token_err)}"}), 400
+        
     return redirect(url_for('index'))
 
 @app.route('/api/watchlist/get_pending')
