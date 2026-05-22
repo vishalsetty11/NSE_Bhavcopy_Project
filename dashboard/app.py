@@ -50,7 +50,7 @@ def get_google_flow(state=None):
         flow.redirect_uri = "https://nse-bhavcopy-project.onrender.com/google/callback"
     else:
         flow.redirect_uri = url_for('google_callback', _external=True)
-        return flow
+    return flow
 
 @app.route('/google/login')
 def google_login():
